@@ -1,0 +1,138 @@
+networks:
+  app-network:
+    driver: bridge
+
+services:
+  nginx-front:
+    image: nginx:alpine
+    container_name: nginx-front
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d/front.conf:/etc/nginx/conf.d/default.conf
+      - ./../front/app/dist:/usr/share/nginx/html
+    ports:
+      - "80:80"
+      #- "443:443"
+    networks:
+      - app-network
+
+  nginx-back:
+    image: nginx:alpine
+    container_name: nginx-back
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf
+      - ./../back/src:${APP_DIR:-/var/www/html/app}
+    links:
+      - php-fpm
+    ports:
+      - "${HOST_PORT:-8080}:80"
+      - "${WS_PORT:-6001}:80"
+    networks:
+      - app-network
+
+  php-fpm:
+    build:
+      context: .
+      dockerfile: php/Dockerfile
+      args:
+        HOST_TZ: ${HOST_TZ:-UTC}
+        WORK_DIR: ${APP_DIR:-/var/www/html/app}
+        XDEBUG_INSTALL: ${XDEBUG_INSTALL:-false}
+    container_name: php-fpm
+    restart: unless-stopped
+    volumes:
+      - ./../back/src:${APP_DIR:-/var/www/html/app}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - app-network
+
+  postgres:
+    image: postgis/postgis:latest
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-homestead}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      POSTGRES_DB: ${DB_DATABASE:-homestead}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - app-network
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_MAX_MESSAGES: 50
+      #MP_DATABASE: ./data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    networks:
+      - app-network
+
+#  mysql:
+#    image: mysql:latest
+#    container_name: mysql
+#    restart: unless-stopped
+#    tty: true
+#    ports:
+#      - "3306:3306"
+#    environment:
+#      MYSQL_DATABASE: ${DB_DATABASE:-homestead}
+#      MYSQL_USER: ${DB_USERNAME:-homestead}
+#      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+#      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+#      SERVICE_TAGS: dev
+#      SERVICE_NAME: mysql
+#    volumes:
+#      - ./../data/mysql:/var/lib/mysql
+#    networks:
+#      - app-network
+#
+#  phpmyadmin:
+#    image: phpmyadmin
+#    container_name: phpmyadmin
+#    restart: always
+#    depends_on:
+#      - mysql
+#    environment:
+#      PMA_HOST: mysql
+#      PMA_PORT: 3306
+#      UPLOAD_LIMIT: 256M
+#      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+#    ports:
+#      - "8082:80"
+#    networks:
+#      - app-network
+
+
+#  pgadmin:
+#    image: dpage/pgadmin4:latest
+#    environment:
+#      PGADMIN_DEFAULT_EMAIL: admin@example.com
+#      PGADMIN_DEFAULT_PASSWORD: secret
+#    ports:
+#      - "5050:80"
+#    depends_on:
+#      - postgres
+#    networks:
+#      - app-network
