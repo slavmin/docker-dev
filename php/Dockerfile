@@ -15,6 +15,7 @@ RUN mkdir -p $APP_DIR \
 
 ENV SUPERVISOR_PHP_USER=$HOST_USER
 ENV SUPERVISOR_PHP_DIRECTORY=$APP_DIR
+ENV XDG_CONFIG_HOME=/tmp
 ENV TZ=$HOST_TZ
 RUN echo "date.timezone = ${TZ:-UTC}" > ${PHP_INI_DIR}/conf.d/timezone.ini
 
